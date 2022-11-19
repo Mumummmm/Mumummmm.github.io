@@ -1,0 +1,207 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Java内存模型与线程 | 林俊超的个人博客</title><meta name="keywords" content="Java虚拟机,Java内存模型,线程"><meta name="author" content="林俊超,526915701@qq.com"><meta name="copyright" content="林俊超"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="阅读完深入理解Java虚拟机第十二章，简单做个总结，记录一下学习成果。这一章主要分为两部分，第一部分先以硬件系统中为提高效率而衍生出来的并发模型为切入点，讲述了Java虚拟机的内存模型，建立在内存模型之上的操作是如何运作的，具体讲到了violate是怎么通过这些操作实现的。从violate的可见行，拓展到线程之间的可见性、原子性和有序性，以及什么是先行发生原则。第二部分简单讲了线程的实现、调度和状">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java内存模型与线程">
+<meta property="og:url" content="https://mumummmm.github.io/posts/31273.html">
+<meta property="og:site_name" content="林俊超的个人博客">
+<meta property="og:description" content="阅读完深入理解Java虚拟机第十二章，简单做个总结，记录一下学习成果。这一章主要分为两部分，第一部分先以硬件系统中为提高效率而衍生出来的并发模型为切入点，讲述了Java虚拟机的内存模型，建立在内存模型之上的操作是如何运作的，具体讲到了violate是怎么通过这些操作实现的。从violate的可见行，拓展到线程之间的可见性、原子性和有序性，以及什么是先行发生原则。第二部分简单讲了线程的实现、调度和状">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://mumummmm.github.io/images/coffee.jpg">
+<meta property="article:published_time" content="2022-08-22T01:37:03.000Z">
+<meta property="article:modified_time" content="2022-08-29T14:38:54.632Z">
+<meta property="article:author" content="林俊超">
+<meta property="article:tag" content="Java虚拟机">
+<meta property="article:tag" content="Java内存模型">
+<meta property="article:tag" content="线程">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://mumummmm.github.io/images/coffee.jpg"><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://mumummmm.github.io/posts/31273"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  source: {
+    justifiedGallery: {
+      js: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.js',
+      css: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.css'
+    }
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Java内存模型与线程',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2022-08-29 22:38:54'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(win=>{
+    win.saveToLocal = {
+      set: function setWithExpiry(key, value, ttl) {
+        if (ttl === 0) return
+        const now = new Date()
+        const expiryDay = ttl * 86400000
+        const item = {
+          value: value,
+          expiry: now.getTime() + expiryDay,
+        }
+        localStorage.setItem(key, JSON.stringify(item))
+      },
+
+      get: function getWithExpiry(key) {
+        const itemStr = localStorage.getItem(key)
+
+        if (!itemStr) {
+          return undefined
+        }
+        const item = JSON.parse(itemStr)
+        const now = new Date()
+
+        if (now.getTime() > item.expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return item.value
+      }
+    }
+  
+    win.getScript = url => new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = url
+      script.async = true
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    })
+  
+      win.activateDarkMode = function () {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = function () {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+          const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+          const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+          const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+
+          if (t === undefined) {
+            if (isLightMode) activateLightMode()
+            else if (isDarkMode) activateDarkMode()
+            else if (isNotSpecified || hasNoSupport) {
+              const now = new Date()
+              const hour = now.getHours()
+              const isNight = hour <= 6 || hour >= 18
+              isNight ? activateDarkMode() : activateLightMode()
+            }
+            window.matchMedia('(prefers-color-scheme: dark)').addListener(function (e) {
+              if (saveToLocal.get('theme') === undefined) {
+                e.matches ? activateDarkMode() : activateLightMode()
+              }
+            })
+          } else if (t === 'light') activateLightMode()
+          else activateDarkMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+    const detectApple = () => {
+      if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+    })(window)</script><meta name="generator" content="Hexo 6.2.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/images/avatar.jpg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">13</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">7</div></a></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-book"></i><span> 文章</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 友情连接</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于我</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url('/images/coffee.jpg')"><nav id="nav"><span id="blog_name"><a id="site-name" href="/">林俊超的个人博客</a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-book"></i><span> 文章</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 友情连接</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于我</span></a></div></div><div id="toggle-menu"><a class="site-page"><i class="fas fa-bars fa-fw"></i></a></div></div></nav><div id="post-info"><h1 class="post-title">Java内存模型与线程</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2022-08-22T01:37:03.000Z" title="发表于 2022-08-22 09:37:03">2022-08-22</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2022-08-29T14:38:54.632Z" title="更新于 2022-08-29 22:38:54">2022-08-29</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E7%BC%96%E7%A8%8B%E6%8A%80%E6%9C%AF%E5%AD%A6%E4%B9%A0/">编程技术学习</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E7%BC%96%E7%A8%8B%E6%8A%80%E6%9C%AF%E5%AD%A6%E4%B9%A0/Java%E8%99%9A%E6%8B%9F%E6%9C%BA/">Java虚拟机</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">字数总计:</span><span class="word-count">1.6k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>4分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="Java内存模型与线程"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><p>阅读完深入理解Java虚拟机第十二章，简单做个总结，记录一下学习成果。<br><img src="https://raw.githubusercontent.com/Mumummmm/blogStaticFiles/master/img/20220823223105.png"><br>这一章主要分为两部分，第一部分先以硬件系统中为提高效率而衍生出来的并发模型为切入点，讲述了Java虚拟机的内存模型，建立在内存模型之上的操作是如何运作的，具体讲到了violate是怎么通过这些操作实现的。<br>从violate的可见行，拓展到线程之间的可见性、原子性和有序性，以及什么是先行发生原则。第二部分简单讲了线程的实现、调度和状态，以及什么是协程。</p>
+<h2 id="硬件系统的并发"><a href="#硬件系统的并发" class="headerlink" title="硬件系统的并发"></a>硬件系统的并发</h2><p>由于计算机处理器的运算速度与通信、存储系统的速度差距太大，大量的时间都花费在磁盘I&#x2F;O和网络通信上，为了不浪费处理器的运算能力，选择让处理器同时处理几项任务，同时处理几项任务涉及到内存交互的问题。<br>需要在内存与处理器之间加入高速缓存来作为缓冲。<br><img src="https://raw.githubusercontent.com/Mumummmm/blogStaticFiles/master/img/20220822195604.png" alt="硬件系统的并发"></p>
+<h2 id="Java虚拟机的内存模型"><a href="#Java虚拟机的内存模型" class="headerlink" title="Java虚拟机的内存模型"></a>Java虚拟机的内存模型</h2><p>Java虚拟机的内存模型与硬件系统相似。<br><img src="https://raw.githubusercontent.com/Mumummmm/blogStaticFiles/master/img/20220823001853.png" alt="Java虚拟机的内存模型"></p>
+<p>内存间的交互操作包括lock、unlock、read、load、use、assign、store、write，作用如下：</p>
+<ul>
+<li>lock：作用于主内存的变量，变量标识为线程独占的状态</li>
+<li>unlock：作用于主内存的变量，变量从锁定状态释放出来，才可以被其它线程锁定</li>
+<li>read：作用于主内存的变量，把变量的值从主内存传输到工作内存</li>
+<li>load：作用于工作内存的变量，把主内存获取的变量的值放到工作内存的变量副本中</li>
+<li>use：作用于工作内存的变量，把变量的值传递给执行引擎</li>
+<li>assign：作用于工作内存的变量，把执行引擎中的值赋给工作内存的变量</li>
+<li>store：作用于工作内存的变量，把工作内存的变量的值传输到主内存中</li>
+<li>write：把工作内存传输过来的值放入主内存中的变量</li>
+</ul>
+<p>后来因考虑到太复杂的关系，将操作简化为read、write、lock、unlock四种，但仅是语言描述上的等价简化。</p>
+<h2 id="violate的可见性"><a href="#violate的可见性" class="headerlink" title="violate的可见性"></a>violate的可见性</h2><p>通过violate声明的对象，在线程间是可见的，即线程每次使用该对象前都会从主内存中重新获取，保证对象是最新的。<br>Java内存模型对violate对象定义的特殊规则是use动作和load、read动作必须连续且一起出现，assign动作和store、write动作必须连续且一起出现。<br>这条规则要求violate修饰的变量不会被指令重排序优化，禁止指令重排序是通过内存屏障的方式实现的。</p>
+<h2 id="先行发生原则"><a href="#先行发生原则" class="headerlink" title="先行发生原则"></a>先行发生原则</h2><p>先行发行是指假设操作A先行发生于操作B，则操作A产生的影响能被操作B观察到，与时间的先后顺序没有关系。<br>Java内存模型中存在的天然的先行关系，不在这些先行关系内，则没有顺序保障。</p>
+<ul>
+<li>程序次序规则：在一个线程内，按程序控制流的顺序，书写在前面的操作先行发生于书写在后面的操作</li>
+<li>管程锁定规则：一个unlock操作先行发生于后面对同一个锁对象的lock操作，这里的后面指的是时间上的先后</li>
+<li>violate规则：一个violate对象的写操作先行发生于后面对同一对象的读操作，这里的后面指的是时间上的先后</li>
+<li>线程启动规则：一个线程的start方法先行发生于线程的其它动作</li>
+<li>线程终止规则：一个线程的所有动作先行发生于对此线程的终止检测</li>
+<li>线程中断规则：对线程的interrupt方法先行发生于被中断线程的中断检测</li>
+<li>对象终结规则：一个对象的初始化完成先行发生于它的finalize方法</li>
+<li>传递性：操作A先行发生于操作B，操作B先行发生于操作C，则操作A先行发生于操作C</li>
+</ul>
+<h2 id="线程的实现"><a href="#线程的实现" class="headerlink" title="线程的实现"></a>线程的实现</h2><p>线程的实现主要有三种。</p>
+<p>第一种是每一个线程对应操作系统的一个内核线程，不直接使用内核线程，而是内核线程的接口-轻量级进程。这种实现方式的问题在于是基于内核线程实现的，线程的各种操作都需要由系统来完成，要在用户态和内核态之间切换，代价比较高，且因为要消耗内核资源，所以数量是有限的。<br><img src="https://raw.githubusercontent.com/Mumummmm/blogStaticFiles/master/img/20220823195332.png"></p>
+<p>第二种是多个用户线程对应操作系统的一个内核线程，这种实现方式用户线程的操作是用户态中完成的，不需要内核参与，但缺点也在于都需要由用户自己控制。<br><img src="https://raw.githubusercontent.com/Mumummmm/blogStaticFiles/master/img/20220823195413.png"></p>
+<p>第三种是混合实现，既存在轻量级进程，也存在用户线程，即用户线程和内核线程是N:M的关系。<br><img src="https://raw.githubusercontent.com/Mumummmm/blogStaticFiles/master/img/20220823195545.png"></p>
+<p>Java线程实现主要是看具体虚拟机，大部分都会采用1:1的线程模型。</p>
+<h2 id="线程的调度"><a href="#线程的调度" class="headerlink" title="线程的调度"></a>线程的调度</h2><p>线程的调度方式有两种，分别是协同式调度和抢占式调度，协同式调度是指线程的执行时间由线程自己控制，线程执行完了会通知系统切换到另一个线程上，这种调度优点是实现简单，一般没有什么线程同步问题，缺点是因为执行时间是由线程决定的，可能导致时间不可控，程序堵塞。<br>而抢占式调度指的是线程的执行时间有系统控制，线程的切换不由线程自身决定，在这种调度下，时间是可控的，不会出现一个线程导致整个进程堵塞。Java使用的方式就是抢占式调度。</p>
+<h2 id="线程的状态"><a href="#线程的状态" class="headerlink" title="线程的状态"></a>线程的状态</h2><ul>
+<li>新建（NEW）：创建后尚未启动</li>
+<li>运行中（Runnable）：包括了Running和Ready两种</li>
+<li>等待：等待其它线程显示唤醒</li>
+<li>超时等待：在一定的时间之后会由系统唤醒</li>
+<li>阻塞：等待获取锁</li>
+<li>结束：线程执行结束，是线程的终态</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="https://Mumummmm.github.io">林俊超</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="https://mumummmm.github.io/posts/31273.html">https://mumummmm.github.io/posts/31273.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://Mumummmm.github.io" target="_blank">林俊超的个人博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Java%E8%99%9A%E6%8B%9F%E6%9C%BA/">Java虚拟机</a><a class="post-meta__tags" href="/tags/Java%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">Java内存模型</a><a class="post-meta__tags" href="/tags/%E7%BA%BF%E7%A8%8B/">线程</a></div><div class="post_share"><div class="social-share" data-image="/images/coffee.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><div><a href="/posts/55684.html" title="线程安全与锁优化"><img class="cover" src="/images/coffee.jpg" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2022-08-25</div><div class="title">线程安全与锁优化</div></div></a></div><div><a href="/posts/13805.html" title="Java内存区域与内存溢出异常"><img class="cover" src="/images/coffee.jpg" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2022-08-14</div><div class="title">Java内存区域与内存溢出异常</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/images/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__name">林俊超</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">13</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">7</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Mumummmm"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">初步搭建了一个简单的博客，还有许多不完善的地方</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%A1%AC%E4%BB%B6%E7%B3%BB%E7%BB%9F%E7%9A%84%E5%B9%B6%E5%8F%91"><span class="toc-number">1.</span> <span class="toc-text">硬件系统的并发</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Java%E8%99%9A%E6%8B%9F%E6%9C%BA%E7%9A%84%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B"><span class="toc-number">2.</span> <span class="toc-text">Java虚拟机的内存模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#violate%E7%9A%84%E5%8F%AF%E8%A7%81%E6%80%A7"><span class="toc-number">3.</span> <span class="toc-text">violate的可见性</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%88%E8%A1%8C%E5%8F%91%E7%94%9F%E5%8E%9F%E5%88%99"><span class="toc-number">4.</span> <span class="toc-text">先行发生原则</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BA%BF%E7%A8%8B%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="toc-number">5.</span> <span class="toc-text">线程的实现</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%B0%83%E5%BA%A6"><span class="toc-number">6.</span> <span class="toc-text">线程的调度</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BA%BF%E7%A8%8B%E7%9A%84%E7%8A%B6%E6%80%81"><span class="toc-number">7.</span> <span class="toc-text">线程的状态</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/21131.html" title="五个基本原则">五个基本原则</a><time datetime="2022-11-19T15:09:36.000Z" title="发表于 2022-11-19 23:09:36">2022-11-19</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/35837.html" title="Mybatis3源码学习">Mybatis3源码学习</a><time datetime="2022-09-18T15:37:50.000Z" title="发表于 2022-09-18 23:37:50">2022-09-18</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/55684.html" title="线程安全与锁优化">线程安全与锁优化</a><time datetime="2022-08-24T16:32:46.000Z" title="发表于 2022-08-25 00:32:46">2022-08-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/31273.html" title="Java内存模型与线程">Java内存模型与线程</a><time datetime="2022-08-22T01:37:03.000Z" title="发表于 2022-08-22 09:37:03">2022-08-22</time></div></div></div></div></div></div></main><footer id="footer" style="background: #5DADE2"><div id="footer-wrap"><div class="copyright">&copy;2022 By 林俊超</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.umd.min.js"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
